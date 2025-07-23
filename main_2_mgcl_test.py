@@ -1,21 +1,9 @@
-import os
 import torch
-import pickle
-import random
 import argparse
-import numpy as np
-import torch.nn as nn
-import PIL.Image as Image
-import torch.optim as optim
-import torch.nn.functional as F
-from torchvision.models import vgg
 from alisuretool.Tools import Tools
-from torch.utils.data import Dataset
-from torchvision.models import resnet
-from torch.utils.data import DataLoader
 from net.net_tools import MGCLNetwork
-from util.util_tools import MyCommon, MyOptim, AverageMeter, Logger
-from dataset.dataset_tools import FSSDataset, Evaluator, DatasetISAID
+from util.util_tools import MyCommon, AverageMeter, Logger
+from dataset.dataset_tools import FSSDataset, Evaluator
 
 
 class Runner(object):
@@ -24,15 +12,14 @@ class Runner(object):
         self.args = args
         self.device = MyCommon.gpu_setup(use_gpu=self.args.use_gpu, gpu_id=args.gpuid)
 
-        self.model = MGCLNetwork(args, False).to(self.device)
+        self.model = MGCLNetwork(args).to(self.device)
         self.model.eval()
         weights = torch.load(args.load, map_location=None if self.args.use_gpu else torch.device('cpu'))
         weights = {one.replace("module.", ""): weights[one] for one in weights.keys()}
         weights = {one.replace("hpn_learner.", "mgcd."): weights[one] for one in weights.keys()}
         self.model.load_state_dict(weights)
 
-        FSSDataset.initialize(img_size=args.img_size, datapath=args.datapath,
-                              use_original_imgsize=args.use_original_imgsize)
+        FSSDataset.initialize(img_size=args.img_size, datapath=args.datapath)
         self.dataloader_val = FSSDataset.build_dataloader(
             args.benchmark, args.bsz, args.nworker, args.fold, 'val', args.shot,
             use_mask=args.mask, mask_num=args.mask_num)
@@ -103,7 +90,6 @@ def my_parser(fold=0, shot=1, backbone='resnet50', benchmark="isaid",
     parser.add_argument('--benchmark', type=str, default=benchmark, choices=['isaid', 'dlrsd'])
     parser.add_argument('--nworker', type=int, default=8)
     parser.add_argument('--img_size', type=int, default=256)
-    parser.add_argument('--use_original_imgsize', type=bool, default=False)
     args = parser.parse_args()
     return args
 

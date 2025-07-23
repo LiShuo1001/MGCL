@@ -1,14 +1,11 @@
 import os
 import torch
-import datetime
-import logging
 import random
+import logging
+import datetime
 import numpy as np
-from operator import add
 import torch.optim as optim
-from functools import reduce
 from alisuretool.Tools import Tools
-from torch.utils.data import Dataset
 from tensorboardX import SummaryWriter
 
 
@@ -99,6 +96,9 @@ class MyCommon(object):
     pass
 
 
+lr_ratio_list = [1000, 500, 1, 2]
+
+
 class MyOptim(object):
 
     @classmethod
@@ -110,11 +110,11 @@ class MyOptim(object):
         pass
 
     @classmethod
-    def adjust_learning_rate_poly(cls, args, optimizer, iter):
+    def adjust_learning_rate_poly(cls, args, optimizer, iter, max_iter):
         if args.finetune_backbone:
-            return cls.adjust_learning_rate_poly_backbone(args, optimizer, iter)
+            return cls.adjust_learning_rate_poly_backbone(args, optimizer, iter, max_iter)
         else:
-            return cls.adjust_learning_rate_poly_no_backbone(args, optimizer, iter)
+            return cls.adjust_learning_rate_poly_no_backbone(args, optimizer, iter, max_iter)
         pass
 
     @staticmethod
@@ -123,7 +123,7 @@ class MyOptim(object):
         weight_list = []
         bias_list = []
         pretrain_weight_list = []
-        pretrain_bias_list =[]
+        pretrain_bias_list = []
         for name, value in model.named_parameters():
             if 'model_res' in name or 'model_backbone' in name or 'backbone' in name:
                 if 'weight' in name:
@@ -136,19 +136,19 @@ class MyOptim(object):
                 elif 'bias' in name:
                     bias_list.append(value)
 
-        opt = optim.SGD([{'params': weight_list, 'lr': lr * 1},
-                         {'params': bias_list, 'lr': lr * 2}],
-                        momentum=0.90, weight_decay=0.0005)
+        if args.is_sgd:
+            opt = optim.SGD([{'params': weight_list, 'lr': lr * lr_ratio_list[2]},
+                             {'params': bias_list, 'lr': lr * lr_ratio_list[3]}], momentum=0.90, weight_decay=0.0005)
+        else:
+            opt = optim.Adam([{'params': weight_list, 'lr': lr * lr_ratio_list[2]},
+                              {'params': bias_list, 'lr': lr * lr_ratio_list[3]}], weight_decay=0.0005)
         return opt
 
     @staticmethod
-    def adjust_learning_rate_poly_no_backbone(args, optimizer, iter):
-        base_lr = args.lr
-        max_iter = args.max_steps
-        reduce = ((1-float(iter)/max_iter)**(args.power))
-        lr = base_lr * reduce
-        optimizer.param_groups[0]['lr'] = lr * 1
-        optimizer.param_groups[1]['lr'] = lr * 2
+    def adjust_learning_rate_poly_no_backbone(args, optimizer, iter, max_iter):
+        lr = args.lr * ((1 - float(iter) / max_iter) ** args.power)
+        optimizer.param_groups[0]['lr'] = lr * lr_ratio_list[2]
+        optimizer.param_groups[1]['lr'] = lr * lr_ratio_list[3]
         return lr
 
     @staticmethod
@@ -157,7 +157,7 @@ class MyOptim(object):
         weight_list = []
         bias_list = []
         pretrain_weight_list = []
-        pretrain_bias_list =[]
+        pretrain_bias_list = []
         for name, value in model.named_parameters():
             if 'model_res' in name or 'model_backbone' in name or 'backbone' in name:
                 if 'weight' in name:
@@ -170,23 +170,25 @@ class MyOptim(object):
                 elif 'bias' in name:
                     bias_list.append(value)
 
-        opt = optim.SGD([{'params': pretrain_weight_list, 'lr':lr/1000},
-                          {'params': pretrain_bias_list, 'lr':lr/500},
-                          {'params': weight_list, 'lr':lr*1},
-                          {'params': bias_list, 'lr':lr*2}],
-                        momentum=0.90, weight_decay=0.0005)
+        if args.is_sgd:
+            opt = optim.SGD([{'params': pretrain_weight_list, 'lr': lr / lr_ratio_list[0]},
+                             {'params': pretrain_bias_list, 'lr': lr / lr_ratio_list[1]},
+                             {'params': weight_list, 'lr': lr * lr_ratio_list[2]},
+                             {'params': bias_list, 'lr': lr * lr_ratio_list[3]}], momentum=0.90, weight_decay=0.0005)
+        else:
+            opt = optim.Adam([{'params': pretrain_weight_list, 'lr': lr / lr_ratio_list[0]},
+                              {'params': pretrain_bias_list, 'lr': lr / lr_ratio_list[1]},
+                              {'params': weight_list, 'lr': lr * lr_ratio_list[2]},
+                              {'params': bias_list, 'lr': lr * lr_ratio_list[3]}], weight_decay=0.0005)
         return opt
 
     @staticmethod
-    def adjust_learning_rate_poly_backbone(args, optimizer, iter):
-        base_lr = args.lr
-        max_iter = args.max_steps
-        reduce = ((1-float(iter)/max_iter)**(args.power))
-        lr = base_lr * reduce
-        optimizer.param_groups[0]['lr'] = lr / 1000
-        optimizer.param_groups[1]['lr'] = lr / 500
-        optimizer.param_groups[2]['lr'] = lr * 1
-        optimizer.param_groups[3]['lr'] = lr * 2
+    def adjust_learning_rate_poly_backbone(args, optimizer, iter, max_iter):
+        lr = args.lr * ((1 - float(iter) / max_iter) ** args.power)
+        optimizer.param_groups[0]['lr'] = lr / lr_ratio_list[0]
+        optimizer.param_groups[1]['lr'] = lr / lr_ratio_list[1]
+        optimizer.param_groups[2]['lr'] = lr * lr_ratio_list[2]
+        optimizer.param_groups[3]['lr'] = lr * lr_ratio_list[3]
         return lr
 
     pass

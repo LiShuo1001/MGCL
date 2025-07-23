@@ -1,26 +1,8 @@
-import argparse
-import os
 import torch
-import pickle
-import datetime
-import logging
-import random
-import numpy as np
-import torch.optim as optim
 import torch.nn as nn
-from alisuretool.Tools import Tools
-from tensorboardX import SummaryWriter
-from torchvision import transforms
-from torch.utils.data import DataLoader
-from functools import reduce
-from operator import add
 import torch.nn.functional as F
 from torchvision.models import resnet
 from torchvision.models import vgg
-from typing_extensions import override
-import PIL.Image as Image
-import torchvision.transforms.v2 as transforms2
-from torch.utils.data import Dataset
 
 
 class CenterPivotConv4d(nn.Module):
@@ -277,12 +259,11 @@ class MGFEModule(object):
 
 class MGCLNetwork(nn.Module):
 
-    def __init__(self, args, use_original_imgsize):
+    def __init__(self, args):
         super().__init__()
         self.args = args
         self.backbone_type = args.backbone
         self.finetune_backbone = args.finetune_backbone if hasattr(args, "finetune_backbone") else False
-        self.use_original_imgsize = use_original_imgsize
 
         if "vgg" in self.backbone_type:
             self.backbone = vgg.vgg16(pretrained=True)
@@ -310,8 +291,7 @@ class MGCLNetwork(nn.Module):
                 pass
             pass
         # MGFE, FBC, MGCD
-        logit = self.segmentation_head(
-            query_feats, support_feats, support_label.clone(), query_mask, support_masks)
+        logit = self.segmentation_head(query_feats, support_feats, support_label.clone(), query_mask, support_masks)
         logit = F.interpolate(logit, support_img.size()[2:], mode='bilinear', align_corners=True)
         return logit
 
@@ -320,16 +300,9 @@ class MGCLNetwork(nn.Module):
         logit_label_agg = 0
         for s_idx in range(nshot):
             logit_label = self.forward(
-                batch['query_img'], batch['support_imgs'][:, s_idx],
-                batch['support_labels'][:, s_idx],
-                query_mask=batch['query_mask']
-                if 'query_mask' in batch and self.args.mask else None,
-                support_masks=batch['support_masks'][:, s_idx]
-                if 'support_masks' in batch and self.args.mask else None)
-
-            if self.use_original_imgsize:
-                org_qry_imsize = tuple([batch['org_query_imsize'][1].item(), batch['org_query_imsize'][0].item()])
-                logit_label = F.interpolate(logit_label, org_qry_imsize, mode='bilinear', align_corners=True)
+                batch['query_img'], batch['support_imgs'][:, s_idx],  batch['support_labels'][:, s_idx],
+                query_mask=batch['query_mask'] if 'query_mask' in batch and self.args.mask else None,
+                support_masks=batch['support_masks'][:, s_idx] if 'support_masks' in batch and self.args.mask else None)
 
             result_i = logit_label.argmax(dim=1).clone()
             logit_label_agg += result_i

@@ -48,9 +48,9 @@ In this work, we propose a novel mask-guided correlation learning method for few
   journal={IEEE Transactions on Geoscience and Remote Sensing}, 
   title={Mask-Guided Correlation Learning for Few-Shot Segmentation in Remote Sensing Imagery}, 
   year={2024},
-  volume={},
+  volume={62},
   number={},
-  pages={1-1},
+  pages={1-14},
   doi={10.1109/TGRS.2024.3417965}
 }
 ```
